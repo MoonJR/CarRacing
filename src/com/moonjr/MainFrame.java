@@ -36,11 +36,11 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 	}
 
 	public MainFrame() {
-
-		mSerial = SerialFactory.createInstance();
-		mSerial.addListener(this);
-
 		try {
+			mSerial = SerialFactory.createInstance();
+			mSerial.addListener(this);
+			mSerial.open(Serial.DEFAULT_COM_PORT, 9600);
+
 			mImagePanelRacing = new ImagePanel("image_racing.jpg");
 			mImagePanelWait = new ImagePanel("image_wait.png");
 			mImagePanel0 = new ImagePanel("image_0.jpg");
