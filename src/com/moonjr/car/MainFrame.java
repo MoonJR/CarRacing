@@ -1,4 +1,4 @@
-package com.moonjr;
+package com.moonjr.car;
 
 import java.awt.BorderLayout;
 import java.awt.Panel;
@@ -20,36 +20,40 @@ import com.pi4j.io.serial.SerialDataEvent;
 import com.pi4j.io.serial.SerialDataEventListener;
 import com.pi4j.io.serial.SerialFactory;
 
-public class MainFrame extends JFrame implements ActionListener, SerialDataEventListener {
+public class MainFrame extends JFrame implements ActionListener,
+		SerialDataEventListener {
 
+	private static final long serialVersionUID = 3237387850380328843L;
 	private Serial mSerial;
-
+	private static final File DEFAULT_FILE = new File(".");
 	private static final String ACTION_SECNARIO = "start scenario";
 	private static final String ACTION_RANDOM = "start random";
 
-	private ImagePanel mImagePanelRacing, mImagePanelWait, mImagePanel0, mImagePanel1, mImagePanel2, mImagePanel3;
+	private ImagePanel mImagePanelRacing, mImagePanelWait, mImagePanel0,
+			mImagePanel1, mImagePanel2, mImagePanel3;
 	private JPanel mPanelMain;
 	private JSpinner mSpinnerScenario;
 
-	public static void main(String[] args) {
-		new MainFrame();
-	}
+	private Thread rewaitThread;
 
 	public MainFrame() {
+
+		mImagePanelRacing = new ImagePanel("image_racing.jpg");
+		mImagePanelWait = new ImagePanel("image_wait.png");
+		mImagePanel0 = new ImagePanel("image_0.jpg");
+		mImagePanel1 = new ImagePanel("image_1.jpg");
+		mImagePanel2 = new ImagePanel("image_2.jpg");
+		mImagePanel3 = new ImagePanel("image_3.jpg");
+
 		try {
 			mSerial = SerialFactory.createInstance();
 			mSerial.addListener(this);
-			mSerial.open(Serial.DEFAULT_COM_PORT, 9600);
+			mSerial.open(Serial.DEFAULT_COM_PORT, 38400);
 
-			mImagePanelRacing = new ImagePanel("image_racing.jpg");
-			mImagePanelWait = new ImagePanel("image_wait.png");
-			mImagePanel0 = new ImagePanel("image_0.jpg");
-			mImagePanel1 = new ImagePanel("image_1.jpg");
-			mImagePanel2 = new ImagePanel("image_2.jpg");
-			mImagePanel3 = new ImagePanel("image_3.jpg");
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
+			System.err.println("Can't Open Serial Port Please System Reboot");
+			return;
 		}
 
 		getContentPane().setLayout(new BorderLayout(0, 0));
@@ -82,14 +86,17 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 	public void setImageRacing() {
 		mPanelMain.removeAll();
 		mPanelMain.add(mImagePanelRacing, BorderLayout.CENTER);
+		refresh();
 	}
 
 	public void setImageWait() {
 		mPanelMain.removeAll();
 		mPanelMain.add(mImagePanelWait, BorderLayout.CENTER);
+		refresh();
 	}
 
 	public void setImage(int num) {
+		System.out.println(num + "change");
 		mPanelMain.removeAll();
 		switch (num) {
 		case 0:
@@ -106,6 +113,23 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 			break;
 		}
 
+		rewaitThread = new Thread() {
+			@Override
+			public void run() {
+				try {
+					sleep(10000);
+					setImageWait();
+				} catch (InterruptedException e) {
+				}
+			}
+		};
+		rewaitThread.start();
+		refresh();
+	}
+
+	private void refresh() {
+		setSize(800, 481);
+		setSize(800, 480);
 	}
 
 	private class ImagePanel extends JPanel {
@@ -114,15 +138,22 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 		 * 
 		 */
 		private static final long serialVersionUID = -6903814073369440054L;
+
 		private BufferedImage image;
 
-		public ImagePanel(File image) throws IOException {
+		public ImagePanel(File image) {
 			super();
-			this.image = ImageIO.read(image);
+			try {
+				this.image = ImageIO.read(image);
+				System.out.println(image.getAbsolutePath() + "Loading Success");
+			} catch (IOException e) {
+				System.out.println(image.getAbsolutePath() + "Loading Fail");
+			}
+
 		}
 
-		public ImagePanel(String image) throws IOException {
-			this(new File(image));
+		public ImagePanel(String image) {
+			this(new File(DEFAULT_FILE.getParentFile(), image));
 		}
 
 		protected void paintComponent(java.awt.Graphics g) {
@@ -139,7 +170,13 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 			scenario = 9999;
 		}
 		try {
-			mSerial.writeln(Integer.toString(scenario));
+			System.out.println(scenario);
+			if (rewaitThread != null && !rewaitThread.isInterrupted()) {
+				rewaitThread.interrupt();
+			}
+
+			setImageRacing();
+			mSerial.write(Integer.toString(scenario));
 		} catch (IllegalStateException | IOException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -150,7 +187,13 @@ public class MainFrame extends JFrame implements ActionListener, SerialDataEvent
 	@Override
 	public void dataReceived(SerialDataEvent arg0) {
 		try {
-			System.out.println(arg0.getAsciiString());
+			String data = arg0.getAsciiString();
+			System.out.println(data);
+
+			if (data.startsWith("Win")) {
+				setImage(Integer.parseInt(data.charAt(data.indexOf('#') + 1)
+						+ ""));
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
